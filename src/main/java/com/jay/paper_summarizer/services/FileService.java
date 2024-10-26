@@ -3,9 +3,11 @@ package com.jay.paper_summarizer.services;
 import com.google.auth.Credentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.*;
+import com.jay.paper_summarizer.dto.PaperInfoDTO;
 import com.jay.paper_summarizer.models.PaperInfo;
 import com.jay.paper_summarizer.repositories.PaperRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -14,7 +16,11 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Date;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 public class FileService {
@@ -47,48 +53,71 @@ public class FileService {
         return fileName.substring(fileName.lastIndexOf("."));
     }
 
-    public String uploadFile(MultipartFile multipartFile) {
-        try{
+    @Async
+    public CompletableFuture<String> uploadFile(MultipartFile multipartFile) {
+        try {
+            // Generate a unique file name and convert the MultipartFile to a File
             String fileName = multipartFile.getOriginalFilename();
-            fileName = UUID.randomUUID().toString().concat(getExtension(fileName));
+
+            String uniqueName = UUID.randomUUID().toString().concat(getExtension(fileName));
+            fileName = fileName.substring(0, fileName.lastIndexOf('.'));
+            fileName = fileName.concat(uniqueName);
             File file = convertToFile(multipartFile, fileName);
+
+            // Perform the asynchronous upload to Firebase
             String fileUrl = uploadFileToFirebase(file, fileName);
 
+            // Save file details to the database
             PaperInfo paperInfo = PaperInfo.builder()
                     .title(fileName)
                     .filePath(fileUrl)
+                    .uploadDate(new Date())
+                    .fileSize(multipartFile.getSize())
                     .build();
             paperRepository.save(paperInfo);
-            file.delete();
-            return fileUrl;
 
+            // Clean up temporary file
+            file.delete();
+
+            return CompletableFuture.completedFuture(fileUrl);
 
         } catch (Exception e) {
             e.printStackTrace();
-            return "File upload failed";
+            return CompletableFuture.completedFuture("File upload failed");
         }
     }
 
-    private void downloadFileFromFirebase(String fileName, String destination) throws IOException {
+    private byte[] downloadFileFromFirebase(String fileName) throws IOException {
         InputStream inputStream = new FileInputStream("D:\\paper_summarizer\\src\\main\\resources\\paper-summarizer-b85db-firebase-adminsdk-4dpvh-74975a92e1.json");
         Credentials credentials = GoogleCredentials.fromStream(inputStream);
         Storage storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService();
+
         Blob blob = storage.get(BlobId.of("paper-summarizer-b85db.appspot.com", fileName));
-        blob.downloadTo(Paths.get(destination));
 
-    }
-
-    public String downloadFile(String fileUrl){
-        String fileName = paperRepository.findByFilePath(fileUrl).getTitle();
-        String destinationPath = "F:\\Downloads\\" + fileName;
-        try {
-            downloadFileFromFirebase(fileName, destinationPath);
-            return "File Downloaded Successfully";
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "File Download Failed";
+        if (blob == null) {
+            throw new FileNotFoundException("File not found in Firebase Storage.");
         }
 
+        return blob.getContent();
+    }
 
+    public byte[] downloadFile(String fileName) {
+
+        try {
+            return downloadFileFromFirebase(fileName);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException("File Download Failed", e);
+        }
+    }
+
+    public List<PaperInfoDTO> getAllUploadedFiles() {
+        return paperRepository.findAll().stream()
+                .map((paperInfo) -> PaperInfoDTO.builder()
+                        .fileName(paperInfo.getTitle())
+                        .fileUrl(paperInfo.getFilePath())
+                        .uploadDate(paperInfo.getUploadDate())
+                        .fileSize(paperInfo.getFileSize())
+                        .build()).toList();
     }
 }
