@@ -11,21 +11,22 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
-@RequestMapping("/paper_summarizer")
+@RequestMapping("/api/paper_summarizer")
 public class PaperController {
 
     @Autowired
     FileService fileService;
 
     @PostMapping("/upload")
-    public CompletableFuture<String> uploadFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<CompletableFuture<String>> uploadFile(@RequestParam("file") MultipartFile file) {
+        System.out.println("Hello");
         try {
             CompletableFuture<String> fileUrl = fileService.uploadFile(file);
             System.out.println(fileUrl);
-            return fileUrl;
+            return ResponseEntity.ok(fileUrl);
         } catch (Exception e){
             e.printStackTrace();
-            return CompletableFuture.completedFuture("File upload failed");
+            return ResponseEntity.status(500).body(CompletableFuture.completedFuture("File upload failed"));
         }
     }
 
@@ -45,6 +46,7 @@ public class PaperController {
 
     @GetMapping("/files")
     public ResponseEntity<List<PaperInfoDTO>> getAllUploadedFiles() {
+        System.out.println("Hello");
         List<PaperInfoDTO> fileUrls = fileService.getAllUploadedFiles();
         return ResponseEntity.ok(fileUrls);
     }
