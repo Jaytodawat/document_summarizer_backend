@@ -40,7 +40,8 @@ public class SecurityConfig {
                 .addFilterBefore(new JwtTokenValidatorFilter(), BasicAuthenticationFilter.class)
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(AppConstants.PRIVATE_URLS).authenticated()
-                        .requestMatchers(AppConstants.PUBLIC_URLS).permitAll())
+                        .requestMatchers(AppConstants.PUBLIC_URLS).permitAll()
+                        .anyRequest().denyAll())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) ->
                                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
