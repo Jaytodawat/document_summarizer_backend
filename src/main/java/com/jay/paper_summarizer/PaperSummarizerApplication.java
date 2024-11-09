@@ -9,7 +9,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 
 @SpringBootApplication
 @EnableAsync
-@EnableWebSecurity
+@EnableWebSecurity(debug = true)
+
 public class PaperSummarizerApplication {
 
     public static void main(String[] args) {

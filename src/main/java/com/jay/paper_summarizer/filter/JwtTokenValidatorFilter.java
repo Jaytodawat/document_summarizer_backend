@@ -4,29 +4,33 @@ import com.jay.paper_summarizer.config.AppConstants;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
+import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.filter.OncePerRequestFilter;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class JwtTokenValidatorFilter extends OncePerRequestFilter {
+@Slf4j
+public class JwtTokenValidatorFilter extends GenericFilter {
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        System.out.println("JwtTokenValidatorFilter.doFilterInternal");
-        System.out.println("request.getRequestURI(): " + request.getRequestURI());
-        String jwtToken = request.getHeader("Authorization");
-        System.out.println("jwtToken: " + jwtToken);
-        if(jwtToken != null){
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain) throws IOException, ServletException {
+        boolean shouldNotFilter = shouldNotFilter((HttpServletRequest) request);
+
+        if(!shouldNotFilter){
+            String jwtToken = ((HttpServletRequest) request).getHeader("Authorization");
+            log.info("jwtToken: {}", jwtToken);
+            if(jwtToken == null){
+                log.warn("Authorization Header is missing");
+                throw new BadCredentialsException("Authorization Header is missing");
+            }
+
             try{
                 String secret = AppConstants.JWT_SECRET_DEFAULT;
                 SecretKey secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
@@ -39,35 +43,32 @@ public class JwtTokenValidatorFilter extends OncePerRequestFilter {
                 String userName = claims.get("username", String.class);
                 String authorities = claims.get("authorities", String.class);
 
-                System.out.println("userName: " + userName);
-                System.out.println("authorities: " + authorities);
+                log.info("userName: {}", userName);
+                log.info("authorities: {}", authorities);
                 if(userName != null){
                     Authentication authentication = new UsernamePasswordAuthenticationToken(
                             userName, null, AuthorityUtils.commaSeparatedStringToAuthorityList(authorities));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    log.warn("Invalid Token");
+                    throw new BadCredentialsException("Invalid Token");
                 }
 
             } catch (Exception e) {
-                System.out.println("Bad Credentials");
-                throw new BadCredentialsException("Invalid Token", e);
+                log.warn("Invalid Token");
+                throw new BadCredentialsException("Invalid Token");
             }
-        } else {
-            throw new BadCredentialsException("Invalid Token");
         }
         filterChain.doFilter(request, response);
     }
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
 
+    protected boolean shouldNotFilter(HttpServletRequest request) {
         for(String url : AppConstants.PUBLIC_URLS){
-            System.out.println("url: " + url);
-            System.out.println(request.getRequestURI().contains(url));
             if(request.getRequestURI().contains(url)){
                 return true;
             }
         }
-
         return false;
     }
 }

@@ -8,6 +8,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -50,19 +51,6 @@ public class MyGlobalExceptionHandler {
         return new ResponseEntity<Map<String, String>>(res, HttpStatus.BAD_REQUEST);
     }
 
-//    @ExceptionHandler(ConstraintViolationException.class)
-//    public ResponseEntity<Map<String, String>> myConstraintsVoilationException(ConstraintViolationException e) {
-//        Map<String, String> res = new HashMap<>();
-//
-//        e.getConstraintViolations().forEach(voilation -> {
-//            String fieldName = voilation.getPropertyPath().toString();
-//            String message = voilation.getMessage();
-//
-//            res.put(fieldName, message);
-//        });
-//
-//        return new ResponseEntity<Map<String, String>>(res, HttpStatus.BAD_REQUEST);
-//    }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<String> myAuthenticationException(AuthenticationException e) {
